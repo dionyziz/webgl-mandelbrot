@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Mandelbrot</title>
+    </head>
+    <body>
+        <canvas id='canvas' width='1200' height='1000'></canvas>
+        <script>
+            var canvas = document.getElementById( 'canvas' );
+            var ctx = canvas.getContext( '2d' );
+            var W = canvas.width, H = canvas.height;
+
+            var MAX_ITER = 50;
+            var MIN_X = -2, MAX_X = 2;
+                MIN_Y = -2, MAX_Y = 2;
+
+            function f( za, zb, ca, cb ) {
+                return [
+                    za * za - zb * zb + ca,
+                    2 * za * zb + cb
+                ];
+            }
+            function mandelbrot( ca, cb ) {
+                var za = 0, zb = 0, z;
+                var n = 400;
+
+                for ( var i = 0; i < MAX_ITER; ++i ) {
+                    z = f( za, zb, ca, cb );
+                    za = z[ 0 ];
+                    zb = z[ 1 ];
+                    if ( Math.abs( za ) >= n || Math.abs( zb ) >= n ) {
+                        return i;
+                    }
+                }
+
+                return MAX_ITER;
+            }
+
+            function drawPixel( x, y, clr ) {
+                var c = Math.floor( 255 * ( MAX_ITER - clr ) / MAX_ITER );
+                var color = 'rgb( ' + c + ', ' + c + ', ' + c + ' )';
+                ctx.fillStyle = color;
+                ctx.fillRect( x, y, STEP_W, STEP_H );
+            }
+
+            ctx.translate( W / 2, H / 2 );
+
+            var SCALE_X = W / ( MAX_X - MIN_X ),
+                SCALE_Y = H / ( MAX_Y - MIN_Y );
+            var STEP_W = 1 / SCALE_X, STEP_H = 1 / SCALE_Y;
+
+            ctx.scale( SCALE_X, SCALE_Y );
+
+            ctx.clearRect( -W / 2, -H / 2 );
+
+            var t = new Date();
+
+            for ( var x = MIN_X; x < MAX_X; x += STEP_W ) {
+                for ( var y = MIN_Y; y < MAX_Y; y += STEP_H ) {
+                    iter = mandelbrot( x, y );
+                    drawPixel( x, y, iter );
+                }
+            }
+            
+            console.log( new Date() - t );
+        </script>
+    </body>
+</html>
