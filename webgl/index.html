@@ -1,18 +1,90 @@
 <!DOCTYPE html>
+<!--
+A Mandelbrot implementation in WebGL.
+
+This code snippet is licensed under the MIT license.
+
+Copyright (C) 2012 Dionysis "dionyziz" Zindros <dionyziz@gmail.com>
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+-->
 <html>
     <head>
         <title>Mandelbrot</title>
-        <script src="glMatrix-0.9.5.min.js"></script>
-        <script id="shader-fs" type="x-shader/x-fragment">
-            #pragma optimize(off)
+        <style>
+            body {
+                margin: 0;
+            }
+            canvas {
+                display: block;
+                margin: auto;
+            }
+        </style>
+        <script src='glMatrix-0.9.5.min.js'></script>
+        <script id='shader-fs' type='x-shader/x-fragment'>
             precision mediump float;
 
             varying vec2 pos;
-            const int MAX_ITER = 50;
+            uniform float uT;
 
-            int mandelbrot( float ca, float cb ) {
+            const int MAX_ITER = 100;
+
+            float hueToRgb( float m1, float m2, float hue ) {
+                float v;
+
+                if ( hue < 0.0 ) {
+                    hue += 1.0;
+                }
+                else if ( hue > 1.0 ) {
+                    hue -= 1.0;
+                }
+
+                if ( 6.0 * hue < 1.0 ) {
+                    v = m1 + ( m2 - m1 ) * hue * 6.0;
+                }
+                else if ( 2.0 * hue < 1.0 ) {
+                    v = m2;
+                }
+                else if ( 3.0 * hue < 2.0 ) {
+                    v = m1 + ( m2 - m1 ) * ( 2.0 / 3.0 - hue ) * 6.0;
+                }
+                else {
+                    v = m1;
+                }
+
+                return v;
+            }
+
+            vec3 hsl2rgb( float h, float s, float l ) {
+                float m1, m2, hue;
+                float r, g, b;
+
+                if ( s == 0.0 ) {
+                    r = g = b = l;
+                }
+                else {
+                    if ( l <= 0.5 ) {
+                        m2 = l * ( s + 1.0 );
+                    }
+                    else {
+                        m2 = l + s - l * s;
+                    }
+                    m1 = l * 2.0 - m2;
+                    hue = h;
+                    r = hueToRgb( m1, m2, hue + 0.333 );
+                    g = hueToRgb( m1, m2, hue);
+                    b = hueToRgb( m1, m2, hue - 0.333 );
+                }
+                return vec3( r, g, b );
+            }
+
+            vec2 mandelbrot( float ca, float cb ) {
                 float za = 0.0, zb = 0.0, z, ta, tb;
-                float n = 400.0;
+                float n = 2.0;
 
                 for ( int i = 0; i < MAX_ITER; ++i ) {
                     ta = za * za - zb * zb + ca;
@@ -20,46 +92,50 @@
                     za = ta;
                     zb = tb;
                     if ( abs( za ) > n || abs( zb ) > n ) {
-                        return i;
+                        return vec2( i, sqrt( za * za + zb * zb ) );
                     }
                 }
 
-                return MAX_ITER;
+                return vec2( 0.0, 0.0 );
             }
 
-            void main(void) {
-                int iter = mandelbrot( 2.0 * pos.x, 2.0 * pos.y );
-                float clr = float( MAX_ITER - iter ) / float( MAX_ITER );
+            void main( void ) {
+                vec2 iter = mandelbrot( 2.0 * pos.x / uT + 0.001643721971153, 2.0 * pos.y / uT + 0.822467633298876 );
+                float v = ( iter.x + 1.0 - log2( log( iter.y ) ) ) / float( MAX_ITER );
+                vec3 clr = hsl2rgb( 1.0 - v, 0.6, v );
 
-                gl_FragColor = vec4( clr, clr, clr, 1.0 );
+                gl_FragColor = vec4( clr, 1.0 );
             }
         </script>
-        <script id="shader-vs" type="x-shader/x-vertex">
+        <script id='shader-vs' type='x-shader/x-vertex'>
             attribute vec2 aVertexPosition;
+
+            uniform float uR;
 
             varying vec2 pos;
 
-            void main(void) {
+            void main( void ) {
                 pos = aVertexPosition;
-                gl_Position = vec4(aVertexPosition, 0.0, 1.0);
+                gl_Position = vec4( aVertexPosition.x / uR, aVertexPosition.y, 0.0, 1.0 );
             }
         </script>
         <script type="text/javascript">
+            // WebGL initialization code and shader loaders are from learningwebgl.com
             var gl;
 
-            function initGL(canvas) {
+            function initGL( canvas ) {
                 try {
-                    gl = canvas.getContext( "experimental-webgl" );
+                    gl = canvas.getContext( 'experimental-webgl' );
+                    window.onresize();
                     gl.viewportWidth = canvas.width;
                     gl.viewportHeight = canvas.height;
                 }
                 catch ( e ) {
                 }
-                if (!gl) {
-                    alert("Could not initialise WebGL, sorry :-(");
+                if ( !gl ) {
+                    alert( 'Could not initialise WebGL, sorry :-(' );
                 }
             }
-
 
             function getShader( gl, id ) {
                 var shaderScript = document.getElementById( id );
@@ -78,10 +154,10 @@
                 }
 
                 var shader;
-                if ( shaderScript.type == "x-shader/x-fragment" ) {
+                if ( shaderScript.type == 'x-shader/x-fragment' ) {
                     shader = gl.createShader( gl.FRAGMENT_SHADER );
                 }
-                else if ( shaderScript.type == "x-shader/x-vertex" ) {
+                else if ( shaderScript.type == 'x-shader/x-vertex' ) {
                     shader = gl.createShader( gl.VERTEX_SHADER );
                 }
                 else {
@@ -102,8 +178,8 @@
             var shaderProgram;
 
             function initShaders() {
-                var fragmentShader = getShader( gl, "shader-fs" );
-                var vertexShader = getShader( gl, "shader-vs" );
+                var fragmentShader = getShader( gl, 'shader-fs' );
+                var vertexShader = getShader( gl, 'shader-vs' );
 
                 shaderProgram = gl.createProgram();
                 gl.attachShader( shaderProgram, vertexShader );
@@ -111,12 +187,15 @@
                 gl.linkProgram( shaderProgram);
 
                 if ( !gl.getProgramParameter( shaderProgram, gl.LINK_STATUS ) ) {
-                    alert( "Could not initialise shaders" );
+                    alert( 'Could not initialise shaders' );
                 }
 
                 gl.useProgram( shaderProgram );
 
-                shaderProgram.vertexPositionAttribute = gl.getAttribLocation( shaderProgram, "aVertexPosition" );
+                shaderProgram.vertexPositionAttribute = gl.getAttribLocation( shaderProgram, 'aVertexPosition' );
+                shaderProgram.uT = gl.getUniformLocation( shaderProgram, 'uT' );
+                shaderProgram.uR = gl.getUniformLocation( shaderProgram, 'uR' );
+
                 gl.enableVertexAttribArray( shaderProgram.vertexPositionAttribute );
             }
 
@@ -126,17 +205,18 @@
                 squareVertexPositionBuffer = gl.createBuffer();
                 gl.bindBuffer( gl.ARRAY_BUFFER, squareVertexPositionBuffer );
                 vertices = [
-                     1.0,  1.0,
-                    -1.0,  1.0,
-                     1.0, -1.0,
-                    -1.0, -1.0
+                     2.0,  1.0,
+                    -2.0,  1.0,
+                     2.0, -1.0,
+                    -2.0, -1.0
                 ];
-                gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
+                gl.bufferData( gl.ARRAY_BUFFER, new Float32Array( vertices ), gl.STATIC_DRAW );
                 squareVertexPositionBuffer.itemSize = 2;
                 squareVertexPositionBuffer.numItems = 4;
             }
 
             var fps = 0;
+            var s, t = 0, z = 1, MAX_T = 1000;
             setInterval( function() {
                 document.title = fps + ' fps';
                 fps = 0;
@@ -144,27 +224,48 @@
 
             function drawScene() {
                 ++fps;
-                gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight);
-                gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+                gl.viewport( 0, 0, gl.viewportWidth, gl.viewportHeight );
+
+                ++t;
+                if ( t >= MAX_T ) {
+                    t = MAX_T;
+                }
+                else {
+                    s = Math.sin( Math.PI * t / MAX_T );
+                    z += s;
+                }
+
+                gl.uniform1f( shaderProgram.uT, z );
+                gl.uniform1f( shaderProgram.uR, r );
 
                 gl.bindBuffer( gl.ARRAY_BUFFER, squareVertexPositionBuffer );
                 gl.vertexAttribPointer( shaderProgram.vertexPositionAttribute, squareVertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0 );
                 gl.drawArrays( gl.TRIANGLE_STRIP, 0, squareVertexPositionBuffer.numItems );
 
-                window.webkitRequestAnimationFrame( drawScene );
+                if ( t < MAX_T ) {
+                    window.raf( drawScene, 30 );
+                }
             }
+
+            window.raf = window.webkitRequestAnimationFrame;
 
             function webGLStart() {
                 var canvas = document.getElementById( 'canvas' );
 
-                initGL(canvas);
+                initGL( canvas );
                 initShaders();
                 initBuffers();
 
-                gl.clearColor( 0.0, 0.0, 0.0, 1.0 );
-
                 drawScene();
             }
+
+            var r = 1;
+
+            window.onresize = function( e ) {
+                gl.viewportWidth = canvas.width = this.innerWidth;
+                gl.viewportHeight = canvas.height = this.innerHeight;
+                r = canvas.width / canvas.height;
+            };
         </script>
     </head>
     <body onload="webGLStart();">
