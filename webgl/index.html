@@ -243,14 +243,25 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
                 gl.drawArrays( gl.TRIANGLE_STRIP, 0, squareVertexPositionBuffer.numItems );
 
                 if ( t < MAX_T ) {
-                    window.raf( drawScene, 30 );
+                    window.requestAnimFrame( drawScene, 30 );
                 }
             }
 
-            window.raf = window.webkitRequestAnimationFrame;
+            window.requestAnimFrame = ( function() {
+                return window.requestAnimationFrame
+                    || window.webkitRequestAnimationFrame
+                    || window.mozRequestAnimationFrame
+                    || window.oRequestAnimationFrame
+                    || window.msRequestAnimationFrame
+                    || function( callback ) {
+                           window.setTimeout( callback, 1000 / 60 );
+                       };
+            } )();
+
+            var canvas;
 
             function webGLStart() {
-                var canvas = document.getElementById( 'canvas' );
+                canvas = document.getElementById( 'canvas' );
 
                 initGL( canvas );
                 initShaders();
